@@ -22,6 +22,7 @@ const Navbar = () => {
     { title: "Menu Arrangement", link: "/menu-arrangement" },
     { title: "About", link: "/about" },
     { title: "Partners", link: "/partners" },
+    { title: "Logout", link: "/logout" },
   ];
 
   return (

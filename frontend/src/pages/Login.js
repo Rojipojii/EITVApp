@@ -18,6 +18,11 @@ function Login() {
       );
 
       if (matchedUser) {
+        const sessionDuration = 3600000; // 1 hour in milliseconds
+  const expiryTime = Date.now() + sessionDuration;
+
+  localStorage.setItem("isLoggedIn", "true");
+  localStorage.setItem("sessionExpiry", expiryTime.toString());
         alert("✅ Login successful!");
         navigate("/dashboard");
       } else {

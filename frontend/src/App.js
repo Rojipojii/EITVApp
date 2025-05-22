@@ -12,6 +12,8 @@ import VenueManagement from "./pages/VenueManagement";
 import About from "./pages/About";
 import Partners from "./pages/Partners";
 import Login from "./pages/Login";
+import Logout from "./pages/logout";
+import PrivateRoute from "./pages/PrivateRoute";
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const PlaceholderPage = ({ title }) => (
@@ -31,16 +33,17 @@ const AppWrapper = () => {
       {!hideNavbarRoutes.includes(location.pathname) && <Navbar />}
       <Routes>
         <Route path="/b" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/Performances" element={<AddPerformance />} />
-        <Route path="/Experiences" element={<AddExperience />} />
-        <Route path="/toilets" element={<AddToilet />} />
-        <Route path="/food" element={<AddFood />} />
-        <Route path="/parking" element={<AddParking />} />
-        <Route path="/venue" element={<VenueManagement />} />
-        <Route path="/menu-arrangement" element={<MenuArrangement />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/partners" element={<Partners />} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+        <Route path="/Performances" element={<PrivateRoute><AddPerformance /> </PrivateRoute>} />
+        <Route path="/Experiences" element={<PrivateRoute><AddExperience /></PrivateRoute>} />
+        <Route path="/toilets" element={<PrivateRoute><AddToilet /></PrivateRoute>} />
+        <Route path="/food" element={<PrivateRoute><AddFood /></PrivateRoute>} />
+        <Route path="/parking" element={<PrivateRoute><AddParking /></PrivateRoute>} />
+        <Route path="/venue" element={<PrivateRoute><VenueManagement /></PrivateRoute>} />
+        <Route path="/menu-arrangement" element={<PrivateRoute><MenuArrangement /></PrivateRoute>} />
+        <Route path="/about" element={<PrivateRoute><About /></PrivateRoute>} />
+        <Route path="/partners" element={<PrivateRoute><Partners /></PrivateRoute>} />
+        <Route path="/logout" element={<Logout />} />
       </Routes>
     </>
   );
