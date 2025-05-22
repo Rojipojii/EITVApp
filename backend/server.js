@@ -75,9 +75,6 @@ const upload = multer({ storage: storage });
 
 
 // module.exports = upload;
-
-
-
 app.get("/app", (req, res) => {
   res.send("This is the /app route");
 });
@@ -86,6 +83,22 @@ app.get("/app", (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send("Something went wrong!");
+});
+
+
+// -----------------------------
+// 🔥 Login
+// -----------------------------
+
+app.get("/app/login", async (req, res) => {
+  try {
+    const [rows] = await pool.execute("SELECT * FROM login");
+    console.log("✅ Retrieved food places:", rows.length);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
 });
 
 
