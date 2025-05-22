@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import Papa from "papaparse";
-import { format, parseISO } from 'date-fns';
-
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { parse, format, parseISO } from "date-fns";
 
 const AddPerformance = () => {
   const [performances, setPerformances] = useState([]);
@@ -9,19 +10,18 @@ const AddPerformance = () => {
   const [newPerformance, setNewPerformance] = useState({
     artist: "",
     description: "",
-    date: "",
-    startTime: "",
-    endTime: "",
     venue: "",
     photo: "",
-    dateTimes: [] // <-- Add this line
+    dateTimes: [
+      { date: '', startTime: '', endTime: '' } 
+    ] 
   });
 
   const [venues, setVenues] = useState([]);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showBulkSuccess, setShowBulkSuccess] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
- const [deleteMessage, setDeleteMessage] = useState(null);
+  const [deleteMessage, setDeleteMessage] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [successType, setSuccessType] = useState(null); // 'add' or 'update'
 
@@ -69,124 +69,134 @@ const AddPerformance = () => {
     }
   };
   
-  const addPerformance = async () => {
-    if (!newPerformance.artist || !newPerformance.date || !newPerformance.startTime || !newPerformance.venue) {
-      console.warn("⚠️ Missing required fields:", newPerformance);
+ const addPerformance = async () => {
+  const { artist, venue, photo, dateTimes, description } = newPerformance;
+
+  // Validate required fields
+  if (!artist || !venue || !Array.isArray(dateTimes) || dateTimes.length === 0) {
+    console.warn("⚠️ Missing required fields:", newPerformance);
+    return;
+  }
+
+  // Validate each dateTime entry (basic)
+  for (const dt of dateTimes) {
+    if (!dt.date || !dt.startTime || !dt.endTime) {
+      console.warn("⚠️ Incomplete dateTimes entry:", dt);
       return;
     }
-  
-    const formData = new FormData();
-  
-    // Append all fields to FormData and log each key/value
-    Object.entries(newPerformance).forEach(([key, value]) => {
-      if (key === "photo") {
-        if (value instanceof File) {
-          formData.append(key, value);
-          console.log(`📸 Appending photo: ${value.name}`);
-        } else {
-          console.log(`⚠️ Skipping non-File photo value:`, value);
-        }
-      } else {
-        formData.append(key, value);
-        console.log(`📝 Appending ${key}:`, value);
-      }
+  }
+
+  // Prepare FormData
+  const formData = new FormData();
+  formData.append("artist", artist);
+  formData.append("venue", venue);
+  if (description) formData.append("description", description);
+  formData.append("dateTimes", JSON.stringify(dateTimes));
+  if (photo instanceof File) {
+    formData.append("photo", photo);
+    console.log(`📸 Appending photo: ${photo.name}`);
+  }
+
+  console.log("🚀 Sending FormData:");
+  for (let [key, value] of formData.entries()) {
+    console.log(`${key}:`, value);
+  }
+
+  try {
+    const response = await fetch("https://gallisalli.com/app/performances", {
+      method: "POST",
+      body: formData,
     });
-  
-    // Show everything inside FormData before sending
-    console.log("🚀 Sending FormData:");
-    for (let pair of formData.entries()) {
-      console.log(`${pair[0]}:`, pair[1]);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Server responded with status ${response.status}:`, errorText);
+      return;
     }
-  
-    try {
-      const response = await fetch("https://gallisalli.com/app/performances", {
-        method: "POST",
-        body: formData,
-      });
-  
-      // Handle non-200 responses
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Server responded with status ${response.status}:`, errorText);
-        return;
-      }
-  
-      const data = await response.json();
-      console.log("✅ Performance added successfully:", data);
-  
-      setPerformances([...performances, data]);
-      setNewPerformance({
-        artist: "",
-        description: "",
-        date: "",
-        startTime: "",
-        endTime: "",
-        venue: "",
-        photo: null,
-      });
-      setSuccessType("add");
-      setShowSuccessMessage(true); // Show success message
-      setTimeout(() => setShowSuccessMessage(false), 3000); // Hide after 3s
-    } catch (error) {
-      console.error("❌ Error adding performance:", error);
-    }
-  };
+
+    const data = await response.json();
+    console.log("✅ Performance added successfully:", data);
+
+    await fetchPerformances(); // Refresh list
+    setNewPerformance({
+      artist: "",
+      description: "",
+      venue: "",
+      photo: null,
+      dateTimes: [{ date: '', startTime: '', endTime: '' }]
+    });
+    setSuccessType("add");
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 3000);
+  } catch (error) {
+    console.error("❌ Error adding performance:", error);
+  }
+};
 
   const handleUpdatePerformance = async () => {
-    if (!newPerformance.artist || !newPerformance.date || !newPerformance.startTime || !newPerformance.venue) {
-      console.warn("⚠️ Missing required fields:", newPerformance);
+  const { artist, venue, photo, description, dateTimes } = newPerformance;
+
+  // ✅ Validate required fields
+  if (!artist || !venue || !Array.isArray(dateTimes) || dateTimes.length === 0) {
+    console.warn("⚠️ Missing required fields:", newPerformance);
+    return;
+  }
+
+  // ✅ Validate each dateTime entry
+  for (const dt of dateTimes) {
+    if (!dt.date || !dt.startTime || !dt.endTime) {
+      console.warn("⚠️ Incomplete dateTime entry:", dt);
       return;
     }
-  
-    const formData = new FormData();
-    Object.entries(newPerformance).forEach(([key, value]) => {
-      if (key === "photo") {
-        if (value instanceof File) {
-          formData.append(key, value);
-        }
-      } else {
-        formData.append(key, value);
-      }
+  }
+
+  const formData = new FormData();
+  formData.append("artist", artist);
+  formData.append("venue", venue);
+  if (description) formData.append("description", description);
+  formData.append("dateTimes", JSON.stringify(dateTimes));
+  if (photo instanceof File) {
+    formData.append("photo", photo);
+    console.log(`📸 Appending photo: ${photo.name}`);
+  }
+
+  try {
+    const response = await fetch(`https://gallisalli.com/app/performances/${editingId}`, {
+      method: "PUT",
+      body: formData,
     });
-  
-    try {
-      const response = await fetch(`https://gallisalli.com/app/performances/${editingId}`, {
-        method: "PUT",
-        body: formData,
-      });
-  
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Update failed:`, errorText);
-        return;
-      }
-  
-      const updatedPerformance = await response.json();
-  
-      setPerformances((prevPerformances) =>
-        prevPerformances.map((p) =>
-          p.performance_id === editingId ? updatedPerformance : p
-        )
-      );
-  
-      setNewPerformance({
-        artist: "",
-        description: "",
-        date: "",
-        startTime: "",
-        endTime: "",
-        venue: "",
-        photo: "",
-      });
-  
-      setEditingId(null);
-      setSuccessType("update");
-      setShowSuccessMessage(true);
-      setTimeout(() => setShowSuccessMessage(false), 3000);
-    } catch (error) {
-      console.error("❌ Error updating performance:", error);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Update failed:", errorText);
+      return;
     }
-  };
+
+    const updatedPerformance = await response.json();
+
+    setPerformances((prevPerformances) =>
+      prevPerformances.map((p) =>
+        p.performance_id === editingId ? updatedPerformance : p
+      )
+    );
+
+    setNewPerformance({
+      artist: "",
+      description: "",
+      venue: "",
+      photo: "",
+      dateTimes: [{ date: '', startTime: '', endTime: '' }]
+    });
+
+    setEditingId(null);
+    setSuccessType("update");
+    setShowSuccessMessage(true);
+    setTimeout(() => setShowSuccessMessage(false), 3000);
+  } catch (error) {
+    console.error("❌ Error updating performance:", error);
+  }
+};
+
   
   const formatDateWithSuffix = (isoDate) => {
     if (!isoDate) return '';
@@ -217,87 +227,100 @@ const AddPerformance = () => {
   const handleEdit = (performance) => {
     setMode("individual");
   
-    // Ensure date is in YYYY-MM-DD format for <input type="date" />
-    const formattedDate = performance.date ? performance.date.slice(0, 10) : "";
+   const fixedDateTimes = Array.isArray(performance.dateTimes)
+    ? performance.dateTimes.map(dt => ({
+        date: dt.date ? new Date(dt.date).toISOString().slice(0, 10) : "",
+        startTime: dt.startTime || "",
+        endTime: dt.endTime || ""
+      }))
+    : [];
+
+  setNewPerformance({
+    artist: performance.artist,
+    description: performance.description,
+    venue: performance.venue,
+    photo: performance.photo || "",
+    dateTimes: fixedDateTimes
+  });
+
+  setEditingId(performance.performance_id);
   
-    // Set the new performance data
-    setNewPerformance({
-      artist: performance.artist,
-      description: performance.description,
-      date: formattedDate,
-      startTime: performance.start_time,
-      endTime: performance.end_time,
-      venue: performance.venue,
-      photo: performance.photo || "", // include the photo URL if available
-    });
-  
-    setEditingId(performance.performance_id);
-  
+    console.log("🧪 performance.dateTimes type:", typeof performance.dateTimes, Array.isArray(performance.dateTimes));
+
     // Log the full details of the performance being edited
     console.log("✏️ Currently editing performance details:", {
       id: performance.performance_id,
       artist: performance.artist,
       description: performance.description,
-      date: formattedDate,
-      startTime: performance.start_time,
-      endTime: performance.end_time,
       venue: performance.venue,
       photo: performance.photo,
     });
   };
-  
-  
-  
-  
+    
   const confirmDelete = async (performance_id) => {
-    try {
-      const response = await fetch(`https://gallisalli.com/app/performances/${performance_id}`, {
-        method: "DELETE",
-      });
-  
-      if (response.ok) {
-        setPerformances(performances.filter((p) => p.performance_id !== performance_id));
-        setDeleteMessage("✅ Performance deleted successfully.");
-        setTimeout(() => {
-          setDeleteMessage(null);
-        }, 3000); // Hide message after 3 seconds
-      } else {
-        const errorText = await response.text();
-        console.error("❌ Delete failed:", errorText);
-        setDeleteMessage("❌ Failed to delete performance.");
-        setTimeout(() => {
-          setDeleteMessage(null);
-        }, 3000); // Hide message after 3 seconds
-      }
-    } catch (error) {
-      console.error("❌ Error deleting performance:", error);
-      setDeleteMessage("❌ Error occurred while deleting.");
-      setTimeout(() => {
-        setDeleteMessage(null);
-      }, 3000); // Hide message after 3 seconds
+  try {
+    const response = await fetch(`https://gallisalli.com/app/performances/${performance_id}`, {
+      method: "DELETE",
+    });
+
+    if (response.ok) {
+      // setPerformances(performances.filter((p) => p.performance_id !== performance_id));
+      await fetchPerformances(); // Always get fresh data from the backend
+      setDeleteMessage("✅ Performance deleted successfully.");
+    } else {
+      const errorText = await response.text();
+      console.error("❌ Delete failed:", errorText);
+      setDeleteMessage("❌ Failed to delete performance.");
     }
-  
-    // Close the modal after delete confirmation
-    setConfirmDeleteId(null);
-  };
-  
+  } catch (error) {
+    console.error("❌ Error deleting performance:", error);
+    setDeleteMessage("❌ Error occurred while deleting.");
+  } finally {
+    setTimeout(() => {
+      setDeleteMessage(null);
+    }, 3000); // Hide message after 3 seconds
+
+    setConfirmDeleteId(null); // Close the modal
+  }
+};
+
   
   const getVenueName = (venueNameOrId) => {
     const venue = venues.find(v => v.venue_id === parseInt(venueNameOrId) || v.name === venueNameOrId);
     return venue ? venue.name : "Unknown venue";
   };
-  const handleAddDateTime = () => {
-    const last = newPerformance.dateTimes.at(-1);
-    if (last && (!last.date || !last.startTime || !last.endTime)) {
-      alert("Please complete the previous row before adding another.");
-      return;
-    }
-    setNewPerformance({
-      ...newPerformance,
-      dateTimes: [...newPerformance.dateTimes, { date: '', startTime: '', endTime: '' }]
-    });
-  };
-  
+
+const handleDateTimeChange = (index, field, value) => {
+  const updatedDateTimes = [...newPerformance.dateTimes];
+  updatedDateTimes[index][field] = value;
+  setNewPerformance({ ...newPerformance, dateTimes: updatedDateTimes });
+};
+
+
+const handleAddDateTime = () => {
+  const last = newPerformance.dateTimes.at(-1);
+  if (last && (!last.date || !last.startTime || !last.endTime)) return;
+
+  setNewPerformance((prev) => ({
+    ...prev,
+    dateTimes: [...prev.dateTimes, { date: "", startTime: "", endTime: "" }],
+  }));
+};
+
+
+const handleRemoveDateTime = (index) => {
+  setNewPerformance((prev) => {
+    const updated = [...prev.dateTimes];
+    updated.splice(index, 1);
+    return {
+      ...prev,
+      dateTimes: updated.length === 0
+        ? [{ date: '', startTime: '', endTime: '' }]
+        : updated,
+    };
+  });
+};
+
 
   const [csvFile, setCsvFile] = useState(null);
 
@@ -414,9 +437,6 @@ const AddPerformance = () => {
 {deleteMessage && (
   <div style={styles.toast}>{deleteMessage}</div>
 )}
-
-
-
           <div style={styles.modeButtons}>
             <button
               onClick={() => setMode("individual")}
@@ -467,40 +487,56 @@ const AddPerformance = () => {
               </div>
 
               <div style={styles.inputLabelContainer}>
-                <label style={styles.inputLabel}>Date & Time</label>
-                <div style={styles.dateTimeContainer}>
-                  <input
-                    type="date"
-                    name="date"
-                    value={newPerformance.date}
-                    onChange={handleInputChange}
-                    style={styles.inputFieldSmall}
-                  />
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={newPerformance.startTime}
-                    onChange={handleInputChange}
-                    style={styles.inputFieldSmall}
-                  />
-                  <span>to</span>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={newPerformance.endTime}
-                    onChange={handleInputChange}
-                    style={styles.inputFieldSmall}
-                  />
+  <label style={styles.inputLabel}>Date & Time</label>
 
-                <button
-          type="button"
-          onClick={handleAddDateTime}
-          style={styles.addButton}
-        >
-          +
-        </button>
-        </div>
-              </div>
+  {/* Additional rows from dateTimes array */}
+  {newPerformance.dateTimes.map((dt, i) => (
+    <div key={i} style={styles.dateTimeContainer}>
+      <input
+        type="date"
+         value={dt.date} 
+        onChange={e => handleDateTimeChange(i, 'date', e.target.value)}
+        
+        style={styles.inputFieldSmall}
+      />
+      <input
+        type="time"
+        value={dt.startTime}
+        onChange={e => handleDateTimeChange(i, 'startTime', e.target.value)}
+        style={styles.inputFieldSmall}
+      />
+      <span>to</span>
+      <input
+        type="time"
+        value={dt.endTime}
+        onChange={e => handleDateTimeChange(i, 'endTime', e.target.value)}
+        style={styles.inputFieldSmall}
+      />
+       <button
+      type="button"
+      onClick={handleAddDateTime}
+      disabled={
+        newPerformance.dateTimes.length > 0 &&
+        (!newPerformance.dateTimes.at(-1).date ||
+         !newPerformance.dateTimes.at(-1).startTime ||
+         !newPerformance.dateTimes.at(-1).endTime)
+      }
+      style={styles.addButton}
+    >
+      +
+    </button>
+   {newPerformance.dateTimes.length > 1 && (
+      <button
+        type="button"
+        onClick={() => handleRemoveDateTime(i)}
+      >
+        -
+      </button>
+    )}
+    </div>
+  ))}
+</div>
+
 
               <div style={styles.row}>
   <div style={styles.halfField}>
@@ -523,7 +559,7 @@ const AddPerformance = () => {
 
   <div style={styles.halfField}>
   <label style={styles.inputLabel}>Photo</label>
-  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
     <input
       type="file"
       name="photo"
@@ -570,6 +606,7 @@ const AddPerformance = () => {
         endTime: "",
         venue: "",
         photo: "",
+        dateTimes: [{ date: '', startTime: '', endTime: '' }] // ✅ ensure this is always initialized as an array
       });
     }}
     style={{ ...styles.submitButton, backgroundColor: "red", marginLeft: "10px" }}
@@ -582,7 +619,7 @@ const AddPerformance = () => {
             </div>
           ) : (
             <div>
-              <h4>Upload CSV file with Artist, Description, Date, Start Time, End Time, Venue</h4>
+              <h4>Upload CSV file with Artist, Description, Date(mm/dd/yyyy), Start Time(05:00), End Time(05:45), Venue</h4>
               <input type="file" accept=".csv" onChange={handleFileChange} style={styles.csvInput} />
               <button style={styles.submitButton} onClick={handleBulkUpload}>
                 Upload CSV
@@ -593,9 +630,17 @@ const AddPerformance = () => {
 
         <div style={styles.tableContainer}>
         <h3>Performances ({performances.length})</h3>
-          <table style={styles.table}>
+        <table
+  border="1"
+  cellPadding="5"
+  style={{
+    width: "100%",
+    textAlign: "left",
+    borderCollapse: "collapse"
+  }}
+>
             <thead>
-              <tr>
+              <tr key={performance.performance_id}>
                 <th>Artist</th>
                 <th>Date</th>
                 <th>Time</th>
@@ -607,8 +652,29 @@ const AddPerformance = () => {
               {performances.map((performance, index) => (
                 <tr key={index}>
                   <td>{performance.artist}</td>
-                  <td>{formatDateWithSuffix(performance.date)}</td>
-                  <td>{formatTime(performance.start_time)} - {formatTime(performance.end_time)}</td>
+                  <td>
+  {performance.dateTimes && performance.dateTimes.length > 0 ? (
+    performance.dateTimes.map((dt, i) => (
+      <div key={i}>{formatDateWithSuffix(dt.date)}</div>
+    ))
+  ) : (
+    <div>N/A</div>
+  )}
+</td>
+<td>
+  {performance.dateTimes && performance.dateTimes.length > 0 ? (
+    performance.dateTimes.map((dt, i) => (
+      <div key={i}>
+        {formatTime(dt.startTime)} - {formatTime(dt.endTime)}
+      </div>
+    ))
+  ) : (
+    <div>N/A</div>
+  )}
+</td>
+
+                  {/* <td>{formatDateWithSuffix(performance.date)}</td>
+                  <td>{formatTime(performance.start_time)} - {formatTime(performance.end_time)}</td> */}
                   <td>{getVenueName(performance.venue)}</td>
                   <td>
   <div style={{ display: "flex", alignItems: "center" }}>
@@ -648,15 +714,12 @@ const AddPerformance = () => {
     </button>
   </div>
 </td>
-
-
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-    // </div>
   );
 };
 
@@ -749,14 +812,14 @@ const styles = {
     fontWeight: "bold",
   },
   inputField: {
-    width: "100%",
+    width: "90%",
     padding: "10px",
     border: "1px solid #ddd",
     borderRadius: "5px",
     fontSize: "1rem",
   },
   textareaField: {
-    width: "100%",
+    width: "90%",
     padding: "10px",
     border: "1px solid #ccc",
     borderRadius: "5px",
@@ -765,7 +828,6 @@ const styles = {
     height: "50px", // <- reduced height
     maxHeight: "120px",
   },
-
   timeInputs: {
     display: "flex",
     gap: "10px",
@@ -810,18 +872,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
   },
-  // modalOverlay: {
-  //   position: "fixed",
-  //   top: 0,
-  //   left: 0,
-  //   right: 0,
-  //   bottom: 0,
-  //   backgroundColor: "rgba(0, 0, 0, 0.5)",
-  //   display: "flex",
-  //   justifyContent: "center",
-  //   alignItems: "center",
-  //   zIndex: 1000,
-  // },
   modal: {
     backgroundColor: "white",
     padding: "20px",

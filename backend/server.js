@@ -465,66 +465,67 @@ app.put("/app/parking/:id", async (req, res) => {
 // -----------------------------
 app.post("/app/performances", upload.single("photo"), async (req, res) => {
   try {
-    console.log("=== Incoming Request ===");
-    console.log("BODY:", req.body);
-    
-    // Check if file is uploaded
-    if (!req.file) {
-      console.warn("⚠️ No file uploaded.");
-    } else {
-      console.log("FILE:", req.file); // Logs the uploaded file details
-    }
+    const { artist, description, venue, dateTimes } = req.body;
+    const parsedDateTimes = JSON.parse(dateTimes); // coming from FormData
 
-    const { artist, description, date, startTime, endTime, venue } = req.body;
-
-    // Optional fields with null fallback
-    const descriptionSafe = description ?? null;
-    const dateSafe = date ?? null;
-    const startTimeSafe = startTime ?? null;
-    const endTimeSafe = endTime ?? null;
-    const venueSafe = venue ?? null;
-
-    // The file path will now reflect the structure (performance folder)
     const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-    // Log the photo URL to confirm the file path
-    console.log("Photo URL:", photoUrl);
-
-    if (!artist || !date || !startTime || !venue) {
-      return res.status(400).json({ message: "Missing required fields" });
+    if (!artist || !venue || !Array.isArray(parsedDateTimes) || parsedDateTimes.length === 0) {
+      return res.status(400).json({ message: "Missing required fields or dateTimes" });
     }
 
-    const [rows] = await pool.execute(
-      "INSERT INTO performances (artist, description, date, start_time, end_time, venue, photo) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [artist, descriptionSafe, dateSafe, startTimeSafe, endTimeSafe, venueSafe, photoUrl]
+    const [performanceResult] = await pool.execute(
+      "INSERT INTO performances (artist, description, venue, photo) VALUES (?, ?, ?, ?)",
+      [artist, description ?? null, venue, photoUrl]
     );
 
-    res.json({
-      id: rows.insertId,
-      artist,
-      description: descriptionSafe,
-      date: dateSafe,
-      startTime: startTimeSafe,
-      endTime: endTimeSafe,
-      venue: venueSafe,
-    });
+    const performanceId = performanceResult.insertId;
+
+    // Insert all dateTimes
+    const dateTimeInserts = parsedDateTimes.map(dt => [performanceId, dt.date, dt.startTime, dt.endTime]);
+    await pool.query(
+      "INSERT INTO performance_date_times (performance_id, date, start_time, end_time) VALUES ?",
+      [dateTimeInserts]
+    );
+
+    res.json({ message: "Performance created", performanceId });
   } catch (err) {
-    console.error("❌ Server Error:", err.message);
+    console.error("❌ Error:", err);
     res.status(500).send("Server Error");
   }
 });
 
 
-
 app.get("/app/performances", async (req, res) => {
   try {
-    const [rows] = await pool.execute("SELECT * FROM performances");
-    res.json(rows);
+    const [performances] = await pool.execute("SELECT * FROM performances");
+
+    const [dateTimes] = await pool.execute("SELECT * FROM performance_date_times");
+
+    // Group dateTimes by performance_id
+    const grouped = {};
+    for (const dt of dateTimes) {
+      if (!grouped[dt.performance_id]) grouped[dt.performance_id] = [];
+      grouped[dt.performance_id].push({
+        date: dt.date,
+        startTime: dt.start_time,
+        endTime: dt.end_time,
+      });
+    }
+
+    // Attach to each performance
+    const result = performances.map(p => ({
+      ...p,
+      dateTimes: grouped[p.performance_id] || [],
+    }));
+
+    res.json(result);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 });
+
 
 // -----------------------------
 // 🎭 BULK UPLOAD PERFORMANCES
@@ -575,41 +576,59 @@ app.delete("/app/performances/:performance_id", (req, res) => {
 
 app.put("/app/performances/:id", upload.single("photo"), async (req, res) => {
   const id = req.params.id;
-  const {
-    artist,
-    description,
-    date,
-    startTime,
-    endTime,
-    venue,
-  } = req.body;
+  const { artist, description, venue, dateTimes } = req.body;
 
-  const photo = req.file ? req.file.filename : null; // or the path
+  const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
-    const query = `
-    UPDATE performances
-    SET artist = ?, description = ?, date = ?, start_time = ?, end_time = ?, venue = ? ${photo ? ", photo = ?" : ""}
-    WHERE performance_id = ?
-  `;
-  
+    const parsedDateTimes = JSON.parse(dateTimes);
 
-  const values = photo
-  ? [artist, description, date, startTime, endTime, venue, photo, id]
-  : [artist, description, date, startTime, endTime, venue, id];
+    if (!artist || !venue || !Array.isArray(parsedDateTimes) || parsedDateTimes.length === 0) {
+      return res.status(400).json({ message: "Missing required fields or dateTimes" });
+    }
 
+    // Update main performance data
+    const updateQuery = `
+      UPDATE performances
+      SET artist = ?, description = ?, venue = ? ${photoUrl ? ", photo = ?" : ""}
+      WHERE performance_id = ?
+    `;
 
-    await pool.query(query, values);
+    const values = photoUrl
+      ? [artist, description ?? null, venue, photoUrl, id]
+      : [artist, description ?? null, venue, id];
 
-    const [updated] = await pool.query("SELECT * FROM performances WHERE performance_id = ?", [id]);
+    await pool.execute(updateQuery, values);
 
-    res.json(updated[0]);
+    // Delete existing date_times for this performance
+    await pool.execute("DELETE FROM performance_date_times WHERE performance_id = ?", [id]);
+
+    // Insert new dateTimes
+    const dateTimeInserts = parsedDateTimes.map(dt => [id, dt.date, dt.startTime, dt.endTime]);
+    await pool.query(
+      "INSERT INTO performance_date_times (performance_id, date, start_time, end_time) VALUES ?",
+      [dateTimeInserts]
+    );
+
+    // Fetch updated performance + dateTimes
+    const [performances] = await pool.execute("SELECT * FROM performances WHERE performance_id = ?", [id]);
+    const [updatedDateTimes] = await pool.execute("SELECT * FROM performance_date_times WHERE performance_id = ?", [id]);
+
+    const result = {
+      ...performances[0],
+      dateTimes: updatedDateTimes.map(dt => ({
+        date: dt.date,
+        startTime: dt.start_time,
+        endTime: dt.end_time,
+      })),
+    };
+
+    res.json(result);
   } catch (error) {
     console.error("Error updating performance:", error);
     res.status(500).send("Error updating performance");
   }
 });
-
 
 // -----------------------------
 // 💡 EXPERIENCES
@@ -762,6 +781,50 @@ app.post("/app/venues/bulk", (req, res) => {
       insertedIds: result.insertId, // This will give the first inserted id (for bulk inserts, more work needed)
     });
   });
+});
+
+
+app.delete("/app/venues/:venue_id", (req, res) => {
+  const { venue_id } = req.params;
+
+  const query = "DELETE FROM venues WHERE venue_id = ?";
+  pool.query(query, [venue_id], (err, result) => {
+    if (err) {
+      console.error("Error deleting venue:", err);
+      return res.status(500).send("Error deleting venue.");
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).send("Venue not found.");
+    }
+
+    res.status(200).send("Venue deleted successfully.");
+  });
+});
+
+
+app.put("/app/venues/:id", async (req, res) => {
+  const id = req.params.id;
+  const { name, gps, selected } = req.body;
+
+  try {
+    const query = `
+      UPDATE venues
+      SET name = ?, gps = ?
+      WHERE venue_id = ?
+    `;
+
+    const values = [name, gps ?? 0, id];
+
+    await pool.query(query, values);
+
+    const [updated] = await pool.query("SELECT * FROM venues WHERE venue_id = ?", [id]);
+
+    res.json(updated[0]);
+  } catch (error) {
+    console.error("Error updating venue:", error);
+    res.status(500).send("Error updating venue.");
+  }
 });
 
 

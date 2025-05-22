@@ -536,7 +536,7 @@ const AddExperience = () => {
 </div>
           ) : (
             <div>
-              <h4>Upload CSV with Title, Description, Date, Start Time, End Time, Venue</h4>
+              <h4>Upload CSV file with Artist, Description, Date(mm/dd/yyyy), Start Time(05:00), End Time(05:45), Venue</h4>
               <input type="file" accept=".csv" onChange={handleFileChange} style={styles.fileInput} />
               <button style={styles.submitButton} onClick={handleBulkUpload}>
                 Upload CSV
@@ -547,7 +547,15 @@ const AddExperience = () => {
 
         <div style={styles.tableContainer}>
         <h3>Experience ({experiences.length})</h3>
-          <table style={styles.table}>
+        <table
+  border="1"
+  cellPadding="5"
+  style={{
+    width: "100%",
+    textAlign: "left",
+    borderCollapse: "collapse"
+  }}
+>
             <thead>
               <tr>
                 <th>Title</th>
@@ -677,11 +685,6 @@ const styles = {
     boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
     textAlign: "left",
     overflowY: "auto",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    marginTop: "20px",
   },
   tableCell: {
     border: "1px solid #ddd",

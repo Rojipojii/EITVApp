@@ -1,0 +1,21 @@
+.resizable-image-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.resizable-image-wrapper img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ccc;
+}
+
+.resizer-handle {
+  width: 10px;
+  height: 100%;
+  background: #007bff;
+  position: absolute;
+  top: 0;
+  right: 0;
+  cursor: ew-resize;
+}

@@ -6,12 +6,12 @@ import axios from "axios";
 const ItemType = "MENU_ITEM";
 
 const MenuItem = ({ item, index, moveItem }) => {
-  const [, ref] = useDrag({
+  const [, dragRef] = useDrag({
     type: ItemType,
     item: { index },
   });
 
-  const [, drop] = useDrop({
+  const [, dropRef] = useDrop({
     accept: ItemType,
     hover: (draggedItem) => {
       if (draggedItem.index !== index) {
@@ -22,14 +22,22 @@ const MenuItem = ({ item, index, moveItem }) => {
   });
 
   return (
-    <tr ref={(node) => ref(drop(node))} className="border-b hover:bg-gray-100 cursor-grab">
-      <td className="p-5 text-xl flex items-center justify-start space-x-4">
-        <span className="text-gray-400 text-2xl">⋮⋮</span>
-        <span>{item.name}</span>
+    <tr className="border-b hover:bg-gray-100">
+      <td className="p-5 text-xl">
+      <div
+  ref={(node) => dragRef(dropRef(node))}
+  className="flex items-center space-x-4"
+  style={{ cursor: "grab" }}
+>
+
+          <span className="text-gray-400 text-2xl">⋮⋮</span>
+          <span>{item.name}</span>
+        </div>
       </td>
     </tr>
   );
 };
+
 
 const MenuArrangement = () => {
   const [menuItems, setMenuItems] = useState([]);
@@ -77,13 +85,12 @@ const MenuArrangement = () => {
     <DndProvider backend={HTML5Backend}>
       <div style={{ width: "400px", margin: "auto", textAlign: "left" }}>
         <div className="w-full max-w-lg bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Reorder Menu</h2>
+        <h2 className="text-gray-500 text-base mb-3">Menu Arrangement</h2>
           <div className="p-5 border border-gray-300 rounded-lg bg-white shadow-md w-full">
             <p className="text-gray-500 text-base mb-3">Drag items using the handle</p>
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-200">
-                  <th className="p-5 text-left text-xl">Menu Item</th>
                 </tr>
               </thead>
               <tbody>

@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import React, { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, useMapEvents, useMap} from "react-leaflet";
 import Papa from "papaparse";
 import axios from "axios";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import { MdLocationPin } from "react-icons/md";
+
 
 const API = "https://gallisalli.com/app"; // Change if different backend URL
 
@@ -12,6 +16,7 @@ const ParkingPage = () => {
     const [editingId, setEditingId] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null); // State for confirmation
     const [deleteMessage, setDeleteMessage] = useState(null);
+    const [showMapModal, setShowMapModal] = useState(false);
 
  // Fetch parking spots
 useEffect(() => {
@@ -32,6 +37,42 @@ useEffect(() => {
   };
   fetchParkingSpots();
 }, []);
+
+
+const MapWithCenterControl = ({ onDone }) => {
+      const map = useMap();
+      const mapRef = useRef(null);
+    
+      useEffect(() => {
+        mapRef.current = map;
+      }, [map]);
+    
+      return (
+        <button
+          onClick={() => {
+            const center = map.getCenter();
+            onDone(center); // Pass coordinates back
+          }}
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "10px 20px",
+            background: "green",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            zIndex: 1001,
+          }}
+        >
+          Done
+        </button>
+      );
+    };
+
+
 
 const handleSave = async () => {
   if (!formData.name || !formData.gps) return;
@@ -80,6 +121,14 @@ const handleSave = async () => {
   }
 };
 
+ delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png"),
+    iconUrl: require("leaflet/dist/images/marker-icon.png"),
+    shadowUrl: require("leaflet/dist/images/marker-shadow.png"),
+  });
+
+
 const handleEdit = (spot) => {
   console.log("🛠️ Editing parking spot:", spot);
   setFormData({
@@ -111,6 +160,9 @@ const cancelDelete = () => {
   setDeleteMessage("❌ Delete cancelled.");
   setTimeout(() => setDeleteMessage(null), 2000);
 };
+
+
+
 
 
   const [csvFile, setCsvFile] = useState(null);
@@ -187,6 +239,164 @@ const cancelDelete = () => {
   return (
     // <div style={{ padding: "20px", fontFamily: "Arial", maxWidth: "1200px", margin: "auto" }}>
       <div style={{ display: "flex", gap: "20px" }}>
+
+                {/* Right Side - Add Parking Spot */}
+                <div style={{ flex: 1, background: "#ffffff", padding: "15px", borderRadius: "10px", border: "1px solid #ccc" }}>
+           {/* Delete Confirmation Modal */}
+      {confirmDeleteId && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <p>Are you sure you want to delete this experience?</p>
+            <div style={styles.modalButtons}>
+              <button
+                onClick={() => { confirmDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                style={{ ...styles.confirmBtn, backgroundColor: "#28a745" }}
+              >
+                Yes
+              </button>
+              <button
+                onClick={cancelDelete}
+                style={{ ...styles.confirmBtn, backgroundColor: "#dc3545" }}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Message Toast */}
+      {deleteMessage && (
+        <div style={styles.toast}>{deleteMessage}</div>
+      )}
+          
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "15px" }}>
+          <div style={styles.modeButtons}>
+            <button
+              onClick={() => setMode("individual")}
+              style={{
+                ...styles.modeButton,
+                backgroundColor: mode === "individual" ? "#007bff" : "#444",
+                borderRadius: "5px 0 0 5px",
+              }}
+            >
+              Individual
+            </button>
+            <button
+              onClick={() => setMode("bulk")}
+              style={{
+                ...styles.modeButton,
+                backgroundColor: mode === "bulk" ? "#007bff" : "#444",
+                borderRadius: "0 5px 5px 0",
+              }}
+            >
+              Bulk Upload
+            </button>
+          </div>
+          </div>
+
+          {mode === "individual" && (
+            <div style={{ marginTop: "15px" }}>
+              <h3>Add New Parking Spot</h3>
+              <input
+                type="text"
+                placeholder="Location name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                style={{ width: "100%", marginBottom: "10px" }}
+              />
+              <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+  <input
+    type="text"
+    placeholder="GPS (lat, long)"
+    value={formData.gps}
+    onChange={(e) => setFormData({ ...formData, gps: e.target.value })}
+    style={{ flex: 1 }}
+  />
+ <button
+  type="button"
+  onClick={() => setShowMapModal(true)}
+  style={{ padding: "6px 12px", cursor: "pointer" }}
+>
+  Browse on Map
+</button>
+</div>
+
+              <input
+                type="text"
+                placeholder="Remarks"
+                value={formData.remarks}
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                style={{ width: "100%", marginBottom: "10px" }}
+              />
+              <button onClick={handleSave} style={{ width: "100%" }}>
+  {editingId ? "Update" : "Add"}
+</button>
+
+            </div>
+          )}
+
+          {mode === "bulk" && (
+            <div style={{ marginTop: "15px" }}>
+              <h3>Bulk Upload</h3>
+              <h4>Upload CSV with Location Name, GPS(lat,long), remarks</h4>
+              <input type="file" accept=".csv" onChange={handleFileChange} style={{ width: "100%" }} />
+              <button onClick={handleBulkUpload} style={{ width: "100%" }}>
+                Upload
+              </button>
+            </div>
+          )}
+        </div>
+      {/* </div> */}
+
+       {showMapModal && (
+              <div style={styles.modalOverlay}>
+                  <button
+                      onClick={() => setShowMapModal(false)}
+                      style={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        backgroundColor: "#dc3545",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "5px",
+                        padding: "6px 12px",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Close
+                    </button>
+                <div style={{ ...styles.modal, width: "90vw", height: "80vh" }}>
+                  <div style={{ height: "100%", width: "100%", position: "relative" }}>
+                    <MapContainer
+                      center={[27.7172, 85.3240]} // Kathmandu as default center
+                      zoom={13}
+                      style={{ height: "100%", width: "100%", borderRadius: "10px" }}    
+                    >
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                     <MapWithCenterControl
+                onDone={(center) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    gps: `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`,
+                  }));
+                  setShowMapModal(false);
+                }}
+              />
+                    </MapContainer>
+            
+                   {/* Fixed center pin icon */}
+                        <div style={styles.pinIcon}>
+                          <MdLocationPin size={30} color="red" />
+                        </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
         {/* Left Side - List of Parking Spots */}
         <div style={{ flex: 2, background: "#f8f9fa", padding: "15px", borderRadius: "10px" }}>
           <h3>Parking Spots ({parkingSpots.length})</h3>
@@ -201,7 +411,6 @@ const cancelDelete = () => {
 >
             <thead>
               <tr>
-                <th></th>
                 <th>Location Name</th>
                 <th>GPS</th>
                 <th>Remarks</th>
@@ -211,7 +420,6 @@ const cancelDelete = () => {
             <tbody>
               {parkingSpots.map((spot) => (
                 <tr key={spot.id}>
-                  <td><input type="checkbox" /></td>
                   <td>{spot.name}</td>
                   <td>{spot.gps.join(", ")}</td>
                   <td>{spot.remarks}</td>
@@ -256,126 +464,9 @@ const cancelDelete = () => {
           </table>
         </div>
 
-        {/* Right Side - Add Parking Spot */}
-        <div style={{ flex: 1, background: "#ffffff", padding: "15px", borderRadius: "10px", border: "1px solid #ccc" }}>
-           {/* Delete Confirmation Modal */}
-      {confirmDeleteId && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <p>Are you sure you want to delete this experience?</p>
-            <div style={styles.modalButtons}>
-              <button
-                onClick={() => { confirmDelete(confirmDeleteId); setConfirmDeleteId(null); }}
-                style={{ ...styles.confirmBtn, backgroundColor: "#28a745" }}
-              >
-                Yes
-              </button>
-              <button
-                onClick={cancelDelete}
-                style={{ ...styles.confirmBtn, backgroundColor: "#dc3545" }}
-              >
-                No
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Delete Message Toast */}
-      {deleteMessage && (
-        <div style={styles.toast}>{deleteMessage}</div>
-      )}
-          
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div style={styles.modeButtons}>
-            <button
-              onClick={() => setMode("individual")}
-              style={{
-                ...styles.modeButton,
-                backgroundColor: mode === "individual" ? "#007bff" : "#444",
-                borderRadius: "5px 0 0 5px",
-              }}
-            >
-              Individual
-            </button>
-            <button
-              onClick={() => setMode("bulk")}
-              style={{
-                ...styles.modeButton,
-                backgroundColor: mode === "bulk" ? "#007bff" : "#444",
-                borderRadius: "0 5px 5px 0",
-              }}
-            >
-              Bulk Upload
-            </button>
-          </div>
-          </div>
 
-          {mode === "individual" && (
-            <div style={{ marginTop: "15px" }}>
-              <h3>Add New Parking Spot</h3>
-              <input
-                type="text"
-                placeholder="Location name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                style={{ width: "100%", marginBottom: "10px" }}
-              />
-              <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-  <input
-    type="text"
-    placeholder="GPS (lat, long)"
-    value={formData.gps}
-    onChange={(e) => setFormData({ ...formData, gps: e.target.value })}
-    style={{ flex: 1 }}
-  />
-  <button
-    type="button"
-    
-    style={{ padding: "6px 12px", cursor: "pointer" }}
-  >
-    Browse on Map
-  </button>
-</div>
 
-              <input
-                type="text"
-                placeholder="Remarks"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                style={{ width: "100%", marginBottom: "10px" }}
-              />
-              <button onClick={handleSave} style={{ width: "100%" }}>
-  {editingId ? "Update" : "Add"}
-</button>
-
-            </div>
-          )}
-
-          {mode === "bulk" && (
-            <div style={{ marginTop: "15px" }}>
-              <h3>Bulk Upload</h3>
-              <input type="file" accept=".csv" onChange={handleFileChange} style={{ width: "100%" }} />
-              <button onClick={handleBulkUpload} style={{ width: "100%" }}>
-                Upload
-              </button>
-            </div>
-          )}
-        </div>
-      {/* </div> */}
-
-      {/* Map Section */}
-      {/* <div style={{ marginTop: "20px", width: "100%" }}>
-        <h3>Map</h3>
-        <MapContainer center={[27.7172, 85.324]} zoom={13} style={{ height: "500px", width: "1500px", borderRadius: "50px" }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {parkingSpots.map((spot) => (
-            <Marker key={spot.id} position={spot.gps}>
-              <Popup>{spot.name}</Popup>
-            </Marker>
-          ))}
-        </MapContainer>
-      </div> */}
     </div>
   );
 };
@@ -437,6 +528,15 @@ const styles = {
     backgroundColor: "green",
     color: "white",
     borderRadius: "5px",
+  },
+  pinIcon: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -100%)", // Adjust vertical offset to center bottom of pin
+    fontSize: "30px",
+    zIndex: 999,
+    pointerEvents: "none", // So map is still interactive
   },
 };
 

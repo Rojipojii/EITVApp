@@ -9,6 +9,8 @@ import AddFood from "./pages/AddFood";
 import AddParking from "./pages/AddParking";
 import MenuArrangement from "./pages/MenuArrangement";  // Import Performances Page
 import VenueManagement from "./pages/VenueManagement";
+import About from "./pages/About";
+import Partners from "./pages/Partners";
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const PlaceholderPage = ({ title }) => (
@@ -31,8 +33,10 @@ function App() {
         <Route path="/parking"  element={<AddParking/>} />
         <Route path="/venue" element={<VenueManagement />} /> 
         <Route path="/menu-arrangement" element={<MenuArrangement />} /> 
-        <Route path="/about" element={<PlaceholderPage title="About" />} />
-        <Route path="/partners" element={<PlaceholderPage title="Partners" />} />
+        <Route path="/about" element={<About/>}/>
+        <Route path="/partners" element={<Partners
+        
+        />} />
       </Routes>
     </Router>
   );
